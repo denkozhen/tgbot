@@ -24,13 +24,18 @@ module.exports = async function webhook(req, res) {
     return sendJson(res, 405, { error: "Method not allowed" });
   }
 
-  const { TELEGRAM_BOT_TOKEN, TELEGRAM_OWNER_ID, TELEGRAM_WEBHOOK_SECRET } =
-    process.env;
+  const {
+    TELEGRAM_BOT_TOKEN,
+    TELEGRAM_OWNER_ID,
+    TELEGRAM_GROUP_ID,
+    TELEGRAM_WEBHOOK_SECRET,
+  } = process.env;
+  const destinationChatId = TELEGRAM_GROUP_ID || TELEGRAM_OWNER_ID;
 
   if (
     !TELEGRAM_BOT_TOKEN ||
-    !TELEGRAM_OWNER_ID ||
-    !/^[1-9]\d*$/.test(TELEGRAM_OWNER_ID) ||
+    !destinationChatId ||
+    !/^-?[1-9]\d*$/.test(destinationChatId) ||
     !TELEGRAM_WEBHOOK_SECRET ||
     !/^[A-Za-z0-9_-]{1,256}$/.test(TELEGRAM_WEBHOOK_SECRET)
   ) {
@@ -73,7 +78,7 @@ module.exports = async function webhook(req, res) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          chat_id: TELEGRAM_OWNER_ID,
+          chat_id: destinationChatId,
           from_chat_id: chatId,
           message_id: message.message_id,
         }),

@@ -5,14 +5,17 @@ const webhook = require("../api/webhook");
 const originalEnvironment = {
   TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
   TELEGRAM_OWNER_ID: process.env.TELEGRAM_OWNER_ID,
+  TELEGRAM_GROUP_ID: process.env.TELEGRAM_GROUP_ID,
   TELEGRAM_WEBHOOK_SECRET: process.env.TELEGRAM_WEBHOOK_SECRET,
 };
 const originalFetch = global.fetch;
+const originalConsoleError = console.error;
 const secret = "test-webhook-secret";
 
 function configureEnvironment() {
   process.env.TELEGRAM_BOT_TOKEN = "test-bot-token";
   process.env.TELEGRAM_OWNER_ID = "123456789";
+  delete process.env.TELEGRAM_GROUP_ID;
   process.env.TELEGRAM_WEBHOOK_SECRET = secret;
 }
 
@@ -50,10 +53,12 @@ afterEach(() => {
     }
   }
   global.fetch = originalFetch;
+  console.error = originalConsoleError;
 });
 
-test("forwards an incoming message to the configured owner", async () => {
+test("forwards an incoming message to the configured group", async () => {
   configureEnvironment();
+  process.env.TELEGRAM_GROUP_ID = "-553766030001";
   let request;
   global.fetch = async (url, options) => {
     request = { url, options };
@@ -72,10 +77,34 @@ test("forwards an incoming message to the configured owner", async () => {
     "https://api.telegram.org/bottest-bot-token/forwardMessage",
   );
   assert.deepEqual(JSON.parse(request.options.body), {
-    chat_id: "123456789",
+    chat_id: "-553766030001",
     from_chat_id: 42,
     message_id: 7,
   });
+});
+
+test("falls back to the owner when the group ID is unset or empty", async (t) => {
+  for (const groupId of [undefined, ""]) {
+    await t.test(`group ID ${groupId === undefined ? "unset" : "empty"}`, async () => {
+      configureEnvironment();
+      if (groupId !== undefined) {
+        process.env.TELEGRAM_GROUP_ID = groupId;
+      }
+      let request;
+      global.fetch = async (_url, options) => {
+        request = options;
+        return { ok: true, json: async () => ({ ok: true }) };
+      };
+
+      const res = await invokeWebhook({
+        headers: { "x-telegram-bot-api-secret-token": secret },
+        body: { message: { chat: { id: 42 }, message_id: 7 } },
+      });
+
+      assert.equal(res.statusCode, 200);
+      assert.equal(JSON.parse(request.body).chat_id, "123456789");
+    });
+  }
 });
 
 test("rejects requests with an invalid webhook secret", async () => {
@@ -117,6 +146,9 @@ test("rejects methods other than POST", async () => {
 
 test("reports Telegram forwarding failures so Telegram can retry", async () => {
   configureEnvironment();
+  process.env.TELEGRAM_GROUP_ID = "-553766030001";
+  const errors = [];
+  console.error = (...args) => errors.push(args);
   global.fetch = async () => ({
     ok: true,
     json: async () => ({ ok: false }),
@@ -129,4 +161,5 @@ test("reports Telegram forwarding failures so Telegram can retry", async () => {
 
   assert.equal(res.statusCode, 502);
   assert.deepEqual(res.body, { error: "Failed to forward message" });
+  assert.equal(errors.length, 1);
 });
