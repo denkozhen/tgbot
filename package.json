@@ -1,0 +1,12 @@
+{
+  "name": "telegram-message-forwarder",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Forward Telegram bot messages to an owner using a Vercel Serverless Function",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}
