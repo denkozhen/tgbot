@@ -92,7 +92,7 @@ module.exports = async function webhook(req, res) {
   }
 
   if (!telegramResponse.ok || !result || result.ok !== true) {
-    console.error("Telegram forwardMessage returned an error");
+    console.error("Telegram error:", JSON.stringify(result));
     return sendJson(res, 502, { error: "Failed to forward message" });
   }
 
